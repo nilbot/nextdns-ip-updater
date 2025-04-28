@@ -1,0 +1,8 @@
+services:
+  nextdns-updater:
+    build: .
+    container_name: nextdns-ip-updater
+    restart: unless-stopped
+    environment:
+      - NEXTDNS_ENDPOINT=https://link-ip.nextdns.io/$NEXTDNS_ID/$NEXTDNS_EXT_ID
+      - UPDATE_INTERVAL_SECONDS=300
