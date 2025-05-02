@@ -8,6 +8,3 @@ wheels/
 
 # Virtual environments
 .venv
-
-# Deployment secrets
-deploy/01-secrets.yaml
