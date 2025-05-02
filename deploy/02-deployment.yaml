@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextdns-ip-updater
+  namespace: homelab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nextdns-ip-updater
+  template:
+    metadata:
+      labels:
+        app: nextdns-ip-updater
+        homelab-local: "true" # Label for affinity
+    spec:
+      containers:
+      - name: nextdns-ip-updater
+        image: ghcr.io/nilbot/nextdns-ip-updater:latest
+        envFrom:
+        - secretRef:
+            name: nextdns-ip-updater-secrets
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: homelab-local
+                operator: In
+                values:
+                - "true"
