@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: nextdns-ip-updater
-        image: ghcr.io/nilbot/nextdns-ip-updater:latest
+        image: ghcr.io/nilbot/nextdns-ip-updater:v0.1.1
         envFrom:
         - secretRef:
             name: nextdns-ip-updater-secrets
