@@ -1,10 +1,10 @@
 [project]
 name = "update-local-wan-ip-nextdns"
-version = "0.1.0"
+version = "0.1.1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "requests==2.31.0",
-    "structlog==24.1.0",
+    "requests>=2.32.3",
+    "structlog>=25.3.0",
 ]
