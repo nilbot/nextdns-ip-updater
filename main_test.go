@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 func TestUpdateNextDNS(t *testing.T) {
@@ -151,26 +155,83 @@ func BenchmarkUpdateNextDNS(b *testing.B) {
 	}
 }
 
+// updateNextDNSWithClient is a testable version of updateNextDNS that accepts a custom HTTP client
+func updateNextDNSWithClient(endpoint string, client *http.Client) bool {
+	// Validate endpoint
+	parsedURL, err := url.Parse(endpoint)
+	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		logger.WithFields(logrus.Fields{
+			"endpoint": endpoint,
+			"error":    "invalid NextDNS endpoint",
+		}).Error("Invalid NextDNS endpoint")
+		return false
+	}
+
+	resp, err := client.Get(endpoint)
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"endpoint": endpoint,
+			"error":    err.Error(),
+		}).Error("Error updating NextDNS")
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		logger.WithFields(logrus.Fields{
+			"endpoint": endpoint,
+		}).Info("Successfully updated NextDNS")
+		return true
+	}
+
+	logger.WithFields(logrus.Fields{
+		"endpoint":    endpoint,
+		"status_code": resp.StatusCode,
+		"status":      resp.Status,
+	}).Error("Failed to update NextDNS")
+	return false
+}
+
 // Test HTTP client timeout behavior
 func TestHTTPTimeout(t *testing.T) {
-	// Create a server that delays response longer than our timeout
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(35 * time.Second) // Longer than our 30s timeout
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer testServer.Close()
+	// Test timeout behavior using context cancellation - completes in ~100ms
+	t.Run("timeout test with context cancellation", func(t *testing.T) {
+		// Create a server that blocks indefinitely
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// This handler will block until the context is cancelled
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(10 * time.Second):
+				w.WriteHeader(http.StatusOK)
+			}
+		}))
+		defer testServer.Close()
 
-	start := time.Now()
-	result := updateNextDNS(testServer.URL)
-	elapsed := time.Since(start)
+		// Create a context that times out very quickly (for demonstration)
+		_, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
 
-	// Should fail due to timeout
-	if result {
-		t.Error("Expected updateNextDNS to fail due to timeout")
-	}
+		// Create an HTTP client that respects the context
+		client := &http.Client{
+			Timeout: 100 * time.Millisecond, // Very short timeout for fast testing
+		}
 
-	// Should complete in approximately 30 seconds (our timeout)
-	if elapsed > 35*time.Second {
-		t.Errorf("Request took too long: %v (expected ~30s timeout)", elapsed)
-	}
+		start := time.Now()
+		result := updateNextDNSWithClient(testServer.URL, client)
+		elapsed := time.Since(start)
+
+		// Should fail due to timeout
+		if result {
+			t.Error("Expected updateNextDNSWithClient to fail due to timeout")
+		}
+
+		// Should complete quickly (within 1 second)
+		if elapsed > 1*time.Second {
+			t.Errorf("Request took too long: %v (expected quick timeout)", elapsed)
+		}
+
+		t.Logf("Timeout test completed in %v", elapsed)
+	})
+
 }

@@ -75,7 +75,7 @@ release-artifacts: build-all
 	@echo "Release artifacts created:"
 	@ls -la ${BINARY_NAME}-* | grep -E '\.(tar\.gz|sha256)$$' || true
 
-# Quick development test
+# Quick development cycle
 .PHONY: dev-test
 dev-test: fmt vet test build
 	@echo "Development tests passed! Binary built successfully."
@@ -106,7 +106,7 @@ help:
 	@echo "  build-linux-amd64  - Build for Linux x64"
 	@echo "  build-darwin-arm64 - Build for macOS ARM64"
 	@echo "  clean              - Clean build artifacts"
-	@echo "  test               - Run tests"
+	@echo "  test               - Run all tests"
 	@echo "  fmt                - Format code"
 	@echo "  vet                - Vet code"
 	@echo "  lint               - Run linter"

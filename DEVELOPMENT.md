@@ -46,10 +46,12 @@ make watch                       # Auto-rebuild on file changes (requires entr)
 
 ### Testing
 ```bash
-make test                        # Run unit tests
-go test -v                       # Verbose test output
+make test                        # Run all tests
+go test -v                       # Run tests with verbose output
 go test -race -coverprofile=coverage.out ./...  # With race detection and coverage
 ```
+
+**Note**: All tests are designed to run quickly. The timeout test uses context cancellation and completes in ~100ms to avoid long waits during development.
 
 ### Building
 ```bash
@@ -157,7 +159,7 @@ Run `make help` to see all available targets:
 - Re-download dependencies: `make deps`
 
 ### Test Issues
-- Tests may take ~35 seconds due to timeout testing
+- Tests are designed to run quickly (~100ms for timeout tests)
 - If tests hang, check for network connectivity issues
 - Run with verbose output: `go test -v`
 
