@@ -8,3 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Go build artifacts
+nextdns-ip-updater
+nextdns-ip-updater-*
+*.tar.gz
+*.sha256
+
+# Go test artifacts
+*.out
+coverage.out

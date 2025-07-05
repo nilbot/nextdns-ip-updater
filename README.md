@@ -1,13 +1,17 @@
 # NextDNS IP Updater
 
-A simple Docker-based service that automatically updates NextDNS with your current WAN IP address at regular intervals by directly calling the NextDNS endpoint from within your home network.
+A service that automatically updates NextDNS with your current WAN IP address at regular intervals by directly calling the NextDNS endpoint from within your home network.
+
+Available in two implementations:
+- **Python version**: Docker-based service (this README)
+- **Go version**: Static binaries for manual deployment ([README-go.md](README-go.md))
 
 ## Features
 
 - Regularly updates the NextDNS endpoint with your WAN IP
 - NextDNS automatically detects your WAN IP when called from your network
 - Uses structured logging for better visibility
-- Runs in a Docker container for easy deployment
+- Runs in a Docker container (Python) or as static binaries (Go)
 - Configurable update interval
 
 ## Configuration

@@ -1,0 +1,142 @@
+# Build and publish Go binaries on release
+name: "Build and Release Go Binaries"
+
+on:
+  release:
+    types: [published] # Trigger only when a release is published
+
+# Add permissions to write releases
+permissions:
+  contents: write # Needed to attach artifacts to releases
+
+env:
+  GO_VERSION: "1.23"
+
+jobs:
+  build-go-binaries:
+    name: Build Go binaries for multiple platforms
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            binary_suffix: linux-amd64
+          - goos: darwin
+            goarch: arm64
+            binary_suffix: darwin-arm64
+    
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Check tag matches pyproject.toml version
+        id: version_check
+        run: |
+          # Extract version from pyproject.toml
+          version=$(grep "version = " pyproject.toml | sed -e 's/version = "\(.*\)"/\1/g')
+          # Get the tag name from the release event (e.g., "v1.2.3" or "1.2.3")
+          release_tag="${{ github.ref_name }}"
+          # Strip 'v' prefix if present
+          tag_version=${release_tag#v}
+
+          if [ "${tag_version}" != "${version}" ]; then
+            echo "Error: Release tag '${release_tag}' (version '${tag_version}') does not match pyproject.toml version '${version}'." >&2
+            exit 1
+          else
+            echo "Version check passed. Building Go binaries for version ${version} from tag ${release_tag}."
+            # Set the version as a step output
+            echo "version=${version}" >> $GITHUB_OUTPUT
+            echo "release_tag=${release_tag}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Cache Go modules
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Build Go binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          BINARY_NAME="nextdns-ip-updater-${{ matrix.binary_suffix }}"
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          LDFLAGS="-w -s -X main.version=${{ steps.version_check.outputs.release_tag }} -X main.buildTime=${BUILD_TIME}"
+          
+          go build -ldflags "${LDFLAGS}" -o "${BINARY_NAME}" main.go
+          
+          # Make sure the binary was created
+          ls -la "${BINARY_NAME}"
+          
+          # Test that the binary can at least show help/version info (if it fails, it will print to stderr and continue)
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            echo "Testing binary (this may fail if NEXTDNS_ENDPOINT is not set, which is expected):"
+            timeout 5s ./"${BINARY_NAME}" || echo "Binary test completed (exit code $?, expected if no env vars set)"
+          fi
+
+      - name: Create binary archive
+        run: |
+          BINARY_NAME="nextdns-ip-updater-${{ matrix.binary_suffix }}"
+          ARCHIVE_NAME="${BINARY_NAME}.tar.gz"
+          
+          # Create a tar.gz archive with the binary
+          tar -czf "${ARCHIVE_NAME}" "${BINARY_NAME}"
+          
+          # Calculate checksums
+          sha256sum "${BINARY_NAME}" > "${BINARY_NAME}.sha256"
+          sha256sum "${ARCHIVE_NAME}" > "${ARCHIVE_NAME}.sha256"
+          
+          echo "Created archive: ${ARCHIVE_NAME}"
+          ls -la "${ARCHIVE_NAME}" "${BINARY_NAME}.sha256" "${ARCHIVE_NAME}.sha256"
+
+      - name: Upload binary as release asset
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./nextdns-ip-updater-${{ matrix.binary_suffix }}
+          asset_name: nextdns-ip-updater-${{ matrix.binary_suffix }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload binary archive as release asset
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./nextdns-ip-updater-${{ matrix.binary_suffix }}.tar.gz
+          asset_name: nextdns-ip-updater-${{ matrix.binary_suffix }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload binary checksum as release asset
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./nextdns-ip-updater-${{ matrix.binary_suffix }}.sha256
+          asset_name: nextdns-ip-updater-${{ matrix.binary_suffix }}.sha256
+          asset_content_type: text/plain
+
+      - name: Upload archive checksum as release asset
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./nextdns-ip-updater-${{ matrix.binary_suffix }}.tar.gz.sha256
+          asset_name: nextdns-ip-updater-${{ matrix.binary_suffix }}.tar.gz.sha256
+          asset_content_type: text/plain

@@ -1,0 +1,64 @@
+# Run Go tests and checks on every push and PR
+name: "Go Tests and Checks"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  GO_VERSION: "1.23"
+
+jobs:
+  test:
+    name: Go Tests and Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run go fmt check
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "The following files are not formatted correctly:"
+            gofmt -s -l .
+            echo "Please run 'go fmt ./...' to fix formatting issues."
+            exit 1
+          fi
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Test build for multiple platforms
+        run: |
+          # Test that cross-compilation works
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/test-linux main.go
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o /tmp/test-darwin main.go
+          echo "Cross-compilation test passed"
+
+      - name: Upload coverage to GitHub
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.out
