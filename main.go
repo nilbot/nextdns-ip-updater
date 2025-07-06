@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -100,13 +102,23 @@ func main() {
 		"build_time":       buildTime,
 	}).Info("Starting NextDNS IP updater")
 
-	// Main update loop
-	for {
-		success := updateNextDNS(nextdnsEndpoint)
-		logger.WithFields(logrus.Fields{
-			"success": success,
-		}).Info("Update cycle completed")
+	// Channel to listen for OS signals for graceful shutdown
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-		time.Sleep(time.Duration(interval) * time.Second)
-	}
+	// Main update loop
+	go func() {
+		for {
+			success := updateNextDNS(nextdnsEndpoint)
+			logger.WithFields(logrus.Fields{
+				"success": success,
+			}).Info("Update cycle completed")
+
+			time.Sleep(time.Duration(interval) * time.Second)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown
+	<-signalChan
+	logger.Info("Received shutdown signal, exiting...")
 }
