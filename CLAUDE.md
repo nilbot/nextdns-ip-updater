@@ -5,18 +5,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is a NextDNS IP updater service with **dual implementations**:
-- **Python version**: Docker-based deployment (primary README.md)
-- **Go version**: Static binaries for systemd/launchd (README-go.md)
+- **Python version**: Docker-based deployment (primary README.md) - **Deprecated, use Go version**
+- **Go version**: Docker images (multi-arch) + static binaries for systemd/launchd (README-go.md)
 
 Both implementations provide identical functionality: periodically calling a NextDNS endpoint to update the WAN IP address.
+
+**Recommended:** Use the Go version for production deployments (smaller image size, better performance, multi-arch support).
 
 ## Build Commands
 
 ### Go Version (Primary Development)
 
+**Binaries:**
 ```bash
 make build              # Build for current platform
-make build-all          # Build for Linux x64 and macOS ARM64
+make build-all          # Build for Linux x64/ARM64 and macOS ARM64
 make test               # Run Go unit tests
 make dev-test           # Format + vet + test + build (recommended during development)
 make fmt                # Format Go code
@@ -24,6 +27,19 @@ make vet                # Run go vet
 make lint               # Run golangci-lint (if installed)
 make clean              # Remove build artifacts
 make release-artifacts  # Create release-ready tar.gz + checksums
+```
+
+**Docker (Go):**
+```bash
+# Build multi-arch Go Docker image locally (requires buildx)
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -f Dockerfile-go \
+  --build-arg VERSION=$(git describe --tags --always) \
+  --build-arg BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  -t nextdns-ip-updater:go .
+
+# Build for specific platform
+docker buildx build --platform linux/amd64 -f Dockerfile-go -t nextdns-ip-updater:go .
 ```
 
 ### Python Version (Docker)
@@ -79,13 +95,19 @@ Run tests frequently during development: `make dev-test`
    - Ensures cross-compilation works
 
 2. **release-go.yml**: Runs on GitHub releases (tags)
-   - Builds Linux x64 and macOS ARM64 binaries
+   - Builds Go binaries for Linux x64/ARM64 and macOS ARM64
    - Creates tar.gz archives and SHA256 checksums
    - Attaches artifacts to the GitHub release
 
-3. **release.yml**: Runs on GitHub releases (tags)
+3. **release-go-docker.yml**: Runs on GitHub releases (tags) - **PRIMARY DEPLOYMENT**
+   - Builds multi-arch Go Docker image (linux/amd64, linux/arm64)
+   - Uses distroless base (~10MB vs ~1GB Python)
+   - Publishes to `ghcr.io/nilbot/nextdns-ip-updater` with `-go` suffix
+   - Tags: `{version}-go`, `{major}.{minor}-go`, `{major}-go`, `latest-go`
+
+4. **release.yml**: Runs on GitHub releases (tags) - **DEPRECATED**
    - Builds and publishes Docker image for Python version
-   - Tags with version from `pyproject.toml`
+   - Tags: `{version}`, `{major}.{minor}`, `{major}`, `latest`
 
 ### Creating a Release
 
@@ -110,10 +132,31 @@ Environment variables:
 
 ## Deployment Options
 
-- **Kubernetes**: See `deploy/` directory for Python version manifests
-- **Docker Compose**: Use `docker-compose.yml` for Python version
+### Container Deployments (Recommended)
+
+- **Kubernetes**: See `deploy/` directory - uses Go Docker image `ghcr.io/nilbot/nextdns-ip-updater:{version}-go`
+  - Multi-arch support: automatically selects linux/amd64 or linux/arm64
+  - ~10MB image vs ~1GB Python image
+
+- **Docker Compose**: Create docker-compose.yml with Go image:
+  ```yaml
+  services:
+    nextdns-updater:
+      image: ghcr.io/nilbot/nextdns-ip-updater:latest-go
+      restart: unless-stopped
+      environment:
+        - NEXTDNS_ENDPOINT=https://link-ip.nextdns.io/$NEXTDNS_ID/$NEXTDNS_EXT_ID
+        - UPDATE_INTERVAL_SECONDS=300
+  ```
+
+### Binary Deployments
+
 - **systemd**: See README-go.md for Linux service configuration
 - **launchd**: See README-go.md for macOS service configuration
+
+### Legacy (Deprecated)
+
+- Python Docker image still available: `ghcr.io/nilbot/nextdns-ip-updater:{version}` (no `-go` suffix)
 
 ## Common Development Tasks
 

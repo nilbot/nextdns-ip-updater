@@ -16,7 +16,9 @@ spec:
     spec:
       containers:
       - name: nextdns-ip-updater
-        image: ghcr.io/nilbot/nextdns-ip-updater:v0.1.1
+        # Go-based image (multi-arch: linux/amd64, linux/arm64)
+        # Python image available for rollback: ghcr.io/nilbot/nextdns-ip-updater:0.1.4
+        image: ghcr.io/nilbot/nextdns-ip-updater:0.1.4-go
         envFrom:
         - secretRef:
             name: nextdns-ip-updater-secrets

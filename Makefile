@@ -17,12 +17,17 @@ build:
 
 # Build for all target platforms
 .PHONY: build-all
-build-all: build-linux-amd64 build-darwin-arm64
+build-all: build-linux-amd64 build-linux-arm64 build-darwin-arm64
 
 # Build for Linux x64
 .PHONY: build-linux-amd64
 build-linux-amd64:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ${LDFLAGS} -o ${BINARY_NAME}-linux-amd64 main.go
+
+# Build for Linux ARM64
+.PHONY: build-linux-arm64
+build-linux-arm64:
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build ${LDFLAGS} -o ${BINARY_NAME}-linux-arm64 main.go
 
 # Build for macOS ARM64
 .PHONY: build-darwin-arm64
@@ -64,7 +69,7 @@ deps:
 .PHONY: release-artifacts
 release-artifacts: build-all
 	@echo "Creating release artifacts..."
-	@for binary in ${BINARY_NAME}-linux-amd64 ${BINARY_NAME}-darwin-arm64; do \
+	@for binary in ${BINARY_NAME}-linux-amd64 ${BINARY_NAME}-linux-arm64 ${BINARY_NAME}-darwin-arm64; do \
 		if [ -f $$binary ]; then \
 			echo "Creating archive for $$binary"; \
 			tar -czf $$binary.tar.gz $$binary; \
@@ -104,6 +109,7 @@ help:
 	@echo "  build              - Build for current platform"
 	@echo "  build-all          - Build for all target platforms"
 	@echo "  build-linux-amd64  - Build for Linux x64"
+	@echo "  build-linux-arm64  - Build for Linux ARM64"
 	@echo "  build-darwin-arm64 - Build for macOS ARM64"
 	@echo "  clean              - Clean build artifacts"
 	@echo "  test               - Run all tests"
