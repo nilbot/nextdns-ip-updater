@@ -77,8 +77,8 @@ jobs:
           BINARY_NAME="nextdns-ip-updater-${{ matrix.binary_suffix }}"
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           LDFLAGS="-w -s -X main.version=${{ steps.version_check.outputs.release_tag }} -X main.buildTime=${BUILD_TIME}"
-          
-          go build -ldflags "${LDFLAGS}" -o "${BINARY_NAME}" main.go
+
+          go build -ldflags "${LDFLAGS}" -o "${BINARY_NAME}" .
           
           # Make sure the binary was created
           ls -la "${BINARY_NAME}"

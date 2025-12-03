@@ -52,8 +52,8 @@ jobs:
       - name: Test build for multiple platforms
         run: |
           # Test that cross-compilation works
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/test-linux main.go
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o /tmp/test-darwin main.go
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/test-linux .
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o /tmp/test-darwin .
           echo "Cross-compilation test passed"
 
       - name: Upload coverage to GitHub
