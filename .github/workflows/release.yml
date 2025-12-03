@@ -58,14 +58,14 @@ jobs:
         with:
           images: ${{ env.NIU_BASE_IMG }}
           tags: |
-            # Tag with the release version (e.g., 1.2.3) - Use step output
-            type=raw,value=${{ steps.version_check.outputs.version }}
-            # Tag with major.minor (e.g., 1.2) - Use step output
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version_check.outputs.version }}
-            # Tag with major (e.g., 1) - Use step output
-            type=semver,pattern={{major}},value=${{ steps.version_check.outputs.version }}
-            # Tag with 'latest'
-            type=raw,value=latest
+            # Tag with the release version + -python suffix (e.g., 0.1.6-python) - Legacy/backwards compatibility
+            type=raw,value=${{ steps.version_check.outputs.version }}-python
+            # Tag with major.minor-python (e.g., 0.1-python)
+            type=semver,pattern={{major}}.{{minor}}-python,value=${{ steps.version_check.outputs.version }}
+            # Tag with major-python (e.g., 0-python)
+            type=semver,pattern={{major}}-python,value=${{ steps.version_check.outputs.version }}
+            # Tag with 'latest-python'
+            type=raw,value=latest-python
 
       - name: Build and push Docker image
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0

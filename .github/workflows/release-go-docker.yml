@@ -60,14 +60,14 @@ jobs:
         with:
           images: ${{ env.NIU_BASE_IMG }}
           tags: |
-            # Tag with the release version + -go suffix (e.g., 1.2.3-go)
-            type=raw,value=${{ steps.version_check.outputs.version }}-go
-            # Tag with major.minor-go (e.g., 1.2-go)
-            type=semver,pattern={{major}}.{{minor}}-go,value=${{ steps.version_check.outputs.version }}
-            # Tag with major-go (e.g., 1-go)
-            type=semver,pattern={{major}}-go,value=${{ steps.version_check.outputs.version }}
-            # Tag with 'latest-go'
-            type=raw,value=latest-go
+            # Tag with the release version (e.g., 0.1.6)
+            type=raw,value=${{ steps.version_check.outputs.version }}
+            # Tag with major.minor (e.g., 0.1)
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version_check.outputs.version }}
+            # Tag with major (e.g., 0)
+            type=semver,pattern={{major}},value=${{ steps.version_check.outputs.version }}
+            # Tag with 'latest'
+            type=raw,value=latest
 
       - name: Get build time
         id: build_time
