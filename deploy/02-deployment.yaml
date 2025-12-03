@@ -16,12 +16,60 @@ spec:
     spec:
       containers:
       - name: nextdns-ip-updater
-        # Go-based image (multi-arch: linux/amd64, linux/arm64)
-        # Python image available for rollback: ghcr.io/nilbot/nextdns-ip-updater:0.1.4
-        image: ghcr.io/nilbot/nextdns-ip-updater:0.1.5-go
+        # Go implementation with health server (multi-arch: linux/amd64, linux/arm64)
+        # Python image available for rollback: ghcr.io/nilbot/nextdns-ip-updater:0.1.4-python
+        image: ghcr.io/nilbot/nextdns-ip-updater:0.1.6
+
+        ports:
+        - name: health
+          containerPort: 8080
+          protocol: TCP
+
         envFrom:
         - secretRef:
             name: nextdns-ip-updater-secrets
+
+        # Startup probe: Wait for DNS + first update (up to 2 minutes)
+        startupProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 24  # 24 * 5s = 120s = 2 minutes max startup time
+          successThreshold: 1
+
+        # Readiness probe: Service is ready after first successful update
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
+          successThreshold: 1
+
+        # Liveness probe: Detect deadlocks or stuck states
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

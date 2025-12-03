@@ -4,20 +4,17 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 func TestUpdateNextDNS(t *testing.T) {
 	tests := []struct {
-		name         string
-		endpoint     string
-		handlerFunc  http.HandlerFunc
-		expectedBool bool
+		name        string
+		endpoint    string
+		handlerFunc http.HandlerFunc
+		wantError   bool
 	}{
 		{
 			name:     "successful update",
@@ -26,7 +23,7 @@ func TestUpdateNextDNS(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("OK"))
 			},
-			expectedBool: true,
+			wantError: false,
 		},
 		{
 			name:     "server error",
@@ -35,19 +32,17 @@ func TestUpdateNextDNS(t *testing.T) {
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write([]byte("Internal Server Error"))
 			},
-			expectedBool: false,
+			wantError: true,
 		},
 		{
-			name:         "invalid URL",
-			endpoint:     "invalid-url",
-			handlerFunc:  nil,
-			expectedBool: false,
+			name:      "invalid URL",
+			endpoint:  "invalid-url",
+			wantError: true,
 		},
 		{
-			name:         "empty URL",
-			endpoint:     "",
-			handlerFunc:  nil,
-			expectedBool: false,
+			name:      "empty URL",
+			endpoint:  "",
+			wantError: true,
 		},
 	}
 
@@ -62,9 +57,15 @@ func TestUpdateNextDNS(t *testing.T) {
 				endpoint = testServer.URL
 			}
 
-			result := updateNextDNS(endpoint)
-			if result != tt.expectedBool {
-				t.Errorf("updateNextDNS() = %v, want %v", result, tt.expectedBool)
+			ctx := context.Background()
+			client := createHTTPClient()
+			err := updateNextDNS(ctx, endpoint, client)
+
+			if tt.wantError && err == nil {
+				t.Error("updateNextDNS() expected error but got nil")
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("updateNextDNS() unexpected error: %v", err)
 			}
 		})
 	}
@@ -149,52 +150,18 @@ func BenchmarkUpdateNextDNS(b *testing.B) {
 	}))
 	defer testServer.Close()
 
+	ctx := context.Background()
+	client := createHTTPClient()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		updateNextDNS(testServer.URL)
+		updateNextDNS(ctx, testServer.URL, client)
 	}
-}
-
-// updateNextDNSWithClient is a testable version of updateNextDNS that accepts a custom HTTP client
-func updateNextDNSWithClient(endpoint string, client *http.Client) bool {
-	// Validate endpoint
-	parsedURL, err := url.Parse(endpoint)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		logger.WithFields(logrus.Fields{
-			"endpoint": endpoint,
-			"error":    "invalid NextDNS endpoint",
-		}).Error("Invalid NextDNS endpoint")
-		return false
-	}
-
-	resp, err := client.Get(endpoint)
-	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"endpoint": endpoint,
-			"error":    err.Error(),
-		}).Error("Error updating NextDNS")
-		return false
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		logger.WithFields(logrus.Fields{
-			"endpoint": endpoint,
-		}).Info("Successfully updated NextDNS")
-		return true
-	}
-
-	logger.WithFields(logrus.Fields{
-		"endpoint":    endpoint,
-		"status_code": resp.StatusCode,
-		"status":      resp.Status,
-	}).Error("Failed to update NextDNS")
-	return false
 }
 
 // Test HTTP client timeout behavior
 func TestHTTPTimeout(t *testing.T) {
-	// Test timeout behavior using context cancellation - completes in ~100ms
+	// Test timeout behavior using context cancellation
 	t.Run("timeout test with context cancellation", func(t *testing.T) {
 		// Create a server that blocks indefinitely
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -208,22 +175,19 @@ func TestHTTPTimeout(t *testing.T) {
 		}))
 		defer testServer.Close()
 
-		// Create a context that times out very quickly (for demonstration)
-		_, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		// Create a context that times out quickly
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
-		// Create an HTTP client that respects the context
-		client := &http.Client{
-			Timeout: 100 * time.Millisecond, // Very short timeout for fast testing
-		}
+		client := createHTTPClient()
 
 		start := time.Now()
-		result := updateNextDNSWithClient(testServer.URL, client)
+		err := updateNextDNS(ctx, testServer.URL, client)
 		elapsed := time.Since(start)
 
 		// Should fail due to timeout
-		if result {
-			t.Error("Expected updateNextDNSWithClient to fail due to timeout")
+		if err == nil {
+			t.Error("Expected updateNextDNS to fail due to timeout")
 		}
 
 		// Should complete quickly (within 1 second)
@@ -233,5 +197,20 @@ func TestHTTPTimeout(t *testing.T) {
 
 		t.Logf("Timeout test completed in %v", elapsed)
 	})
+}
 
+func TestCreateHTTPClient(t *testing.T) {
+	client := createHTTPClient()
+
+	if client == nil {
+		t.Fatal("createHTTPClient returned nil")
+	}
+
+	if client.Timeout != 30*time.Second {
+		t.Errorf("client.Timeout = %v, want 30s", client.Timeout)
+	}
+
+	if client.Transport == nil {
+		t.Fatal("client.Transport should not be nil")
+	}
 }

@@ -5,11 +5,51 @@ This is the Go implementation of the NextDNS IP Updater, providing static binari
 ## Features
 
 - Static binaries with no external dependencies
-- Cross-platform support (Linux x64, macOS ARM64)
-- Same functionality as the Python version
+- Cross-platform support (Linux x64, ARM64, macOS ARM64)
+- **DNS failure resilience** with exponential backoff
+- **HTTP health server** for Kubernetes probes (`/health`, `/ready`, `/metrics`)
 - Structured JSON logging
 - Configurable update intervals
+- Graceful shutdown on SIGTERM/SIGINT
 - Automatic builds via GitHub Actions
+
+## New in v0.1.6
+
+### Health Endpoints
+
+The Go version now exposes HTTP health endpoints on port 8080 for monitoring and Kubernetes integration:
+
+- **`GET /health`** - Liveness check
+  - Returns 200 OK if the service is healthy
+  - Returns 503 if no successful updates in 2x the configured interval (indicates stuck state)
+  - Includes metrics: uptime, update count, error count, last success time
+
+- **`GET /ready`** - Readiness check
+  - Returns 200 OK only after the first successful NextDNS update
+  - Returns 503 during startup or if the service has never successfully updated
+  - Used by Kubernetes to determine when the pod is ready to serve
+
+- **`GET /metrics`** - Prometheus metrics
+  - Exposes metrics in Prometheus text format
+  - Metrics include: `nextdns_updates_total`, `nextdns_errors_total`, `nextdns_ready`, `nextdns_healthy`, `nextdns_uptime_seconds`
+
+**Testing health endpoints locally:**
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/ready
+curl http://localhost:8080/metrics
+```
+
+### DNS Failure Resilience
+
+The service now includes robust DNS failure handling:
+
+1. **Startup DNS check**: Waits for DNS to be ready before starting updates
+2. **Exponential backoff**: Retries DNS lookups with increasing delays (1s → 2s → 4s → ... → 60s)
+3. **Never exits on failure**: Keeps retrying indefinitely until DNS works
+4. **Fast recovery**: Detects when DNS is restored and resumes normal operation
+
+This makes the service safe to deploy in Kubernetes environments where CoreDNS may not be immediately available during cluster boot (especially in WSL or VM environments).
 
 ## Download
 
@@ -43,6 +83,7 @@ Configuration is done through environment variables:
 - `NEXTDNS_ENDPOINT`: The NextDNS endpoint URL to update (required)
   - Format: `https://link-ip.nextdns.io/YOUR_ID/YOUR_EXT_ID`
 - `UPDATE_INTERVAL_SECONDS`: Time between updates in seconds (default: 300 seconds / 5 minutes)
+- `HEALTH_SERVER_PORT`: Port for health endpoints (default: 8080, optional)
 
 ## Usage
 

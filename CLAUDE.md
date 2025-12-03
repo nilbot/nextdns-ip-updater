@@ -79,10 +79,46 @@ When creating releases, update `pyproject.toml` version, then tag with `git tag 
 
 ### Testing Philosophy
 
-Go tests in `main_test.go` are designed for fast execution:
-- Timeout tests use context cancellation to complete in ~100ms
-- No actual network delays during testing
-- Tests should complete in under 1 second total
+The Go implementation follows a TDD (Test-Driven Development) approach with comprehensive test coverage:
+
+**Test Files:**
+- `backoff_test.go` - Exponential backoff logic (100% coverage)
+- `dns_test.go` - DNS health checking and retry logic (85-100% coverage)
+- `health_test.go` - HTTP health server endpoints (85-100% coverage)
+- `main_test.go` - Core update functionality
+
+**Coverage Targets:**
+- Component tests: 85%+ coverage per component
+- Overall coverage: 64% (lower due to main() and integration code)
+- All business logic has excellent test coverage
+
+**Test Execution:**
+```bash
+make test               # Run all tests
+make dev-test           # Format + vet + test + build (recommended)
+go test -v ./...        # Verbose test output
+go test -cover ./...    # With coverage report
+```
+
+**Testing New Features (v0.1.6):**
+
+Health endpoints:
+```bash
+make build && ./nextdns-ip-updater &
+curl http://localhost:8080/health
+curl http://localhost:8080/ready
+curl http://localhost:8080/metrics
+kill %1
+```
+
+DNS resilience (requires network manipulation):
+```bash
+# Note: This requires sudo to block DNS
+sudo iptables -A OUTPUT -p udp --dport 53 -j DROP
+make build && ./nextdns-ip-updater &  # Observe exponential backoff logs
+sudo iptables -D OUTPUT -p udp --dport 53 -j DROP
+# Observe automatic recovery
+```
 
 Run tests frequently during development: `make dev-test`
 
@@ -102,12 +138,12 @@ Run tests frequently during development: `make dev-test`
 3. **release-go-docker.yml**: Runs on GitHub releases (tags) - **PRIMARY DEPLOYMENT**
    - Builds multi-arch Go Docker image (linux/amd64, linux/arm64)
    - Uses distroless base (~10MB vs ~1GB Python)
-   - Publishes to `ghcr.io/nilbot/nextdns-ip-updater` with `-go` suffix
-   - Tags: `{version}-go`, `{major}.{minor}-go`, `{major}-go`, `latest-go`
+   - Publishes to `ghcr.io/nilbot/nextdns-ip-updater` (primary, no suffix)
+   - Tags: `{version}`, `{major}.{minor}`, `{major}`, `latest`
 
 4. **release.yml**: Runs on GitHub releases (tags) - **DEPRECATED**
    - Builds and publishes Docker image for Python version
-   - Tags: `{version}`, `{major}.{minor}`, `{major}`, `latest`
+   - Tags: `{version}-python` (if still maintained)
 
 ### Creating a Release
 
@@ -134,15 +170,15 @@ Environment variables:
 
 ### Container Deployments (Recommended)
 
-- **Kubernetes**: See `deploy/` directory - uses Go Docker image `ghcr.io/nilbot/nextdns-ip-updater:{version}-go`
+- **Kubernetes**: See `deploy/` directory - uses Go Docker image `ghcr.io/nilbot/nextdns-ip-updater:{version}`
   - Multi-arch support: automatically selects linux/amd64 or linux/arm64
   - ~10MB image vs ~1GB Python image
 
-- **Docker Compose**: Create docker-compose.yml with Go image:
+- **Docker Compose**: Create docker-compose.yml:
   ```yaml
   services:
     nextdns-updater:
-      image: ghcr.io/nilbot/nextdns-ip-updater:latest-go
+      image: ghcr.io/nilbot/nextdns-ip-updater:latest
       restart: unless-stopped
       environment:
         - NEXTDNS_ENDPOINT=https://link-ip.nextdns.io/$NEXTDNS_ID/$NEXTDNS_EXT_ID
@@ -156,7 +192,7 @@ Environment variables:
 
 ### Legacy (Deprecated)
 
-- Python Docker image still available: `ghcr.io/nilbot/nextdns-ip-updater:{version}` (no `-go` suffix)
+- Python Docker image still available: `ghcr.io/nilbot/nextdns-ip-updater:{version}-python` (if maintained)
 
 ## Common Development Tasks
 
