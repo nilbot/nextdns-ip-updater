@@ -19,6 +19,7 @@ spec:
         # Go implementation with health server (multi-arch: linux/amd64, linux/arm64)
         # Python image available for rollback: ghcr.io/nilbot/nextdns-ip-updater:0.1.4-python
         image: ghcr.io/nilbot/nextdns-ip-updater:0.1.6
+        imagePullPolicy: Always
 
         ports:
         - name: health
