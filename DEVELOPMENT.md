@@ -10,7 +10,7 @@ This guide helps you set up the development environment for the NextDNS IP Updat
 - **Make**: Usually pre-installed on macOS/Linux
 
 ### Optional Tools
-- **Docker**: For testing the Python version and container builds
+- **Docker**: For container builds and local container testing
 - **golangci-lint**: For comprehensive Go linting
 - **entr**: For file watching during development (`brew install entr` on macOS)
 
@@ -85,10 +85,10 @@ export UPDATE_INTERVAL_SECONDS=60
 ./nextdns-ip-updater-linux-amd64   # On Linux
 ```
 
-### Docker Testing (Python version)
+### Docker Testing
 ```bash
-docker-compose build
-docker-compose up
+docker compose build
+docker compose up
 ```
 
 ## Release Process
@@ -100,7 +100,7 @@ docker-compose up
    ```
 
 2. **Update version** (if needed):
-   - Edit `pyproject.toml` version field
+   - Edit `VERSION` file
    - Commit changes
 
 3. **Create and push tag**:
@@ -122,20 +122,18 @@ docker-compose up
 ```
 ├── main.go                      # Go implementation
 ├── main_test.go                 # Go unit tests
-├── main.py                      # Python implementation
 ├── go.mod, go.sum               # Go dependencies
-├── pyproject.toml               # Python project config
+├── VERSION                      # Version definition file
 ├── Makefile                     # Build automation
-├── Dockerfile                   # Python container
+├── Dockerfile                   # Go container definition
 ├── docker-compose.yml           # Local development
 ├── release.sh                   # Release helper script
 ├── .github/workflows/
-│   ├── release.yml             # Docker image CI/CD
-│   ├── release-go.yml          # Go binaries CI/CD
+│   ├── release-go-docker.yml    # Docker image build & release CI/CD
+│   ├── release-go.yml          # Go binaries release CI/CD
 │   └── go-tests.yml            # Go testing CI
-├── deploy/                      # Kubernetes manifests (Python)
-├── README.md                    # Python version docs
-└── README-go.md                # Go version docs
+├── deploy/                      # Kubernetes manifests
+└── README.md                    # Project documentation
 ```
 
 ## Available Make Targets
@@ -176,14 +174,14 @@ The project has three GitHub Actions workflows:
    - Tests code formatting, linting, and unit tests
    - Tests cross-compilation
 
-2. **Docker Release** (`.github/workflows/release.yml`):
+2. **Go Docker Release** (`.github/workflows/release-go-docker.yml`):
    - Runs on GitHub releases
-   - Builds and publishes Docker image for Python version
+   - Builds and publishes the multi-arch Go Docker image to GitHub Container Registry
 
-3. **Go Release** (`.github/workflows/release-go.yml`):
+3. **Go Binaries Release** (`.github/workflows/release-go.yml`):
    - Runs on GitHub releases  
-   - Builds Go binaries for Linux x64 and macOS ARM64
+   - Builds Go binaries for Linux x64, Linux ARM64, and macOS ARM64
    - Creates checksums and archives
-   - Attaches artifacts to GitHub release
+   - Attaches artifacts to the GitHub release
 
 All workflows use proper versioning, security practices, and artifact management.

@@ -37,18 +37,18 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Check tag matches pyproject.toml version
+      - name: Check tag matches VERSION file
         id: version_check
         run: |
-          # Extract version from pyproject.toml
-          version=$(grep "version = " pyproject.toml | sed -e 's/version = "\(.*\)"/\1/g')
+          # Extract version from VERSION file
+          version=$(cat VERSION)
           # Get the tag name from the release event (e.g., "v1.2.3" or "1.2.3")
           release_tag="${{ github.ref_name }}"
           # Strip 'v' prefix if present
           tag_version=${release_tag#v}
 
           if [ "${tag_version}" != "${version}" ]; then
-            echo "Error: Release tag '${release_tag}' (version '${tag_version}') does not match pyproject.toml version '${version}'." >&2
+            echo "Error: Release tag '${release_tag}' (version '${tag_version}') does not match VERSION file '${version}'." >&2
             exit 1
           else
             echo "Version check passed. Building Go binaries for version ${version} from tag ${release_tag}."

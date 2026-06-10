@@ -18,3 +18,8 @@ nextdns-ip-updater-*
 # Go test artifacts
 *.out
 coverage.out
+
+.claude/settings.local.json
+
+update-local-wan-ip-nextdns.code-workspace
+

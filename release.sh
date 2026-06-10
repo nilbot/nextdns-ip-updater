@@ -20,9 +20,9 @@ if ! git rev-parse --git-dir > /dev/null 2>&1; then
     exit 1
 fi
 
-# Get current version from pyproject.toml
-CURRENT_VERSION=$(grep "version = " pyproject.toml | sed -e 's/version = "\(.*\)"/\1/g')
-echo -e "Current version in pyproject.toml: ${YELLOW}${CURRENT_VERSION}${NC}"
+# Get current version from VERSION file
+CURRENT_VERSION=$(cat VERSION)
+echo -e "Current version in VERSION: ${YELLOW}${CURRENT_VERSION}${NC}"
 
 # Check if there are uncommitted changes
 if ! git diff-index --quiet HEAD --; then
@@ -76,10 +76,10 @@ echo "   - Build and attach Go binaries to the release"
 
 echo ""
 echo -e "${GREEN}Manual testing commands:${NC}"
-echo "Build and test Go version:"
+echo "Build and test binaries:"
 echo -e "   ${YELLOW}make build-all${NC}"
-echo "Build and test Docker version:"
-echo -e "   ${YELLOW}docker-compose build${NC}"
+echo "Build Docker image:"
+echo -e "   ${YELLOW}docker compose build${NC}"
 
 echo ""
 echo -e "${GREEN}Version consistency check:${NC}"
