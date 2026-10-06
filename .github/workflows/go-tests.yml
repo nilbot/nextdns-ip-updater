@@ -48,9 +48,25 @@ jobs:
       - name: the cache key's epoch file is present
         run: test -s "$GITHUB_WORKSPACE/.github/go-build-cache-epoch" || { echo ".github/go-build-cache-epoch is missing or empty; the Go cache key would fall back to a frozen snapshot" >&2; exit 1; }
 
-      # setup-go caches the go-build cache as well as the module cache. The
-      # actions/cache step this replaced cached only ~/go/pkg/mod, leaving
-      # `go test -race` to recompile race-instrumented std on every run.
+      # Go 1.24.4 is not in the ubuntu-latest image, so setup-go downloads and
+      # extracts it: measured 2026-10-06 on this repo, 16s cold and 12s warm
+      # (warm because its cache restore happens inside this step too).
+      # Restoring the tree first lets setup-go find the version it was about to
+      # install. Same step as verify.yml in the dotfiles checkout, where it took
+      # setup-go from 23s to 2-3s. Keyed on OS, architecture and version only,
+      # and deliberately not on the epoch: the toolchain is the same for every
+      # run, so sharing one entry is the point. If setup-go stops finding it and
+      # installs anyway, this step is dead weight and comes out.
+      - name: cache the Go toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.tool_cache }}/go/${{ env.GO_VERSION }}
+          key: go-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ env.GO_VERSION }}
+
+      # Keep the cache on: setup-go caches the go-build cache as well as the
+      # module cache, and the go-build half is what `go test -race` spends its
+      # time on. The manual step this replaced covered only ~/go/pkg/mod, so it
+      # left race-instrumented std to be recompiled on every run.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
