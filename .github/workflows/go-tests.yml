@@ -14,29 +14,50 @@ on:
   pull_request:
     branches: [ main ]
 
+# Least privilege: the job reads the repository and uploads an artifact, nothing
+# more. verify.yml in the dotfiles checkout sets the same.
+permissions:
+  contents: read
+
 env:
-  GO_VERSION: "1.23"
+  # Exact patch, and one source for it: setup-go's input and the files its cache
+  # key hashes both read this. Never a floating minor. "1.23" resolved to
+  # 1.23.12, which go.mod's `toolchain go1.24.4` then overrode by downloading
+  # go1.24.4 at run time -- so the toolchain setup-go installed was not the one
+  # that compiled, and its cache key named a version GOCACHE never saw.
+  GO_VERSION: '1.24.4'
 
 jobs:
   test:
     name: Go Tests and Quality Checks
     runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    timeout-minutes: 15
 
-      - name: Set up Go
-        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # setup-go keys its cache on the files in cache-dependency-path, restores
+      # with NO restore-key, and returns early from its save when the primary key
+      # already exists. An unrotated key is therefore frozen at whatever the first
+      # run happened to put in GOCACHE, and can never repair itself.
+      # .github/go-build-cache-epoch is the lever that rotates it. This step fails
+      # closed when the epoch file disappears: hashFiles returns the empty string
+      # for a path matching nothing, and setup-go throws only when EVERY named
+      # path matches nothing, so a missing epoch would silently fall back to the
+      # frozen key.
+      - name: the cache key's epoch file is present
+        run: test -s "$GITHUB_WORKSPACE/.github/go-build-cache-epoch" || { echo ".github/go-build-cache-epoch is missing or empty; the Go cache key would fall back to a frozen snapshot" >&2; exit 1; }
+
+      # setup-go caches the go-build cache as well as the module cache. The
+      # actions/cache step this replaced cached only ~/go/pkg/mod, leaving
+      # `go test -race` to recompile race-instrumented std on every run.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
-
-      - name: Cache Go modules
-        uses: actions/cache@v4 # not using pinned commit to ensure we get the latest version
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            .github/go-build-cache-epoch
 
       - name: Download Go modules
         run: go mod download
