@@ -107,6 +107,10 @@ warm-versus-warm isolates the toolchain change.
 The `go test` binary's own reported time never moved — 7.055s before, 7.027s
 warm after. Everything saved was compilation.
 
+The whole-run durations GitHub reports for the three commits agree with the span
+column, and are an independent measure rather than the same arithmetic: 58s
+(`37541795601`), 36s (`37542634165`), 29s (`37543472529`).
+
 ## 5. What would revert it
 
 - **The toolchain cache**, if setup-go stops finding the restored tree and
