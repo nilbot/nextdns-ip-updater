@@ -103,21 +103,61 @@ Backup location:
   `net/http: timeout awaiting response headers` blips against the NextDNS
   endpoint, not a fault; the health endpoint tolerates them.
 
-## Leftovers (inert, not removed)
+## Leftovers, and their removal
+
+Two files were left in place when the daemon was removed, then deleted at 23:31
+the same day, once nothing was found to reference them:
 
 - `/opt/nextdns-ip-updater/nextdns-ip-updater` — 6,119,346 bytes, root-owned.
-- `/etc/nextdns-ip-updater.conf` — the empty template, plus the
-  `/etc/default/nextdns-ip-updater` symlink to it.
+  Deleted together with the now-empty `/opt/nextdns-ip-updater/` directory.
+- `/etc/nextdns-ip-updater.conf` — the empty template. Deleted, together with the
+  `/etc/default/nextdns-ip-updater` symlink pointing at it and the then-empty
+  `/etc/default/` directory that the 2026-06-10 install had created to hold it.
 
-Neither is referenced by anything anymore. If a system-wide (boot-time, pre-login)
-service is wanted later, the correct fix is to set the endpoint **and** make it
-reach the process — either `export` in the config, or drop the bash wrapper and
-put `EnvironmentVariables` in the plist, as the LaunchAgent does.
+A copy of the config survives as `nextdns-ip-updater.conf.removed` in the backup
+directory, because it is not tracked in this repository. The binary was not
+archived: it was a stale build, and `make build` reproduces a current one.
+
+**That binary belonged to the LaunchDaemon, not to the LaunchAgent.** The running
+agent executes `/Users/nilbot/.local/bin/nextdns-ip-updater`, confirmed three
+ways: `ps -o command -p 1252`, the `txt` entry for PID 1252 in `lsof -p 1252`, and
+`launchctl print gui/501/com.nextdns.ip-updater` (`program = /Users/nilbot/.local/bin/nextdns-ip-updater`).
+The two files are different builds rather than copies of one another:
+
+```
+~/.local/bin/nextdns-ip-updater  sha256 f8cec411…  6,258,818 bytes  v0.1.6-1-g0736be9-dirty  built 2026-06-10T15:44:52Z
+/opt/nextdns-ip-updater/…        sha256 f990afaa…  6,119,346 bytes  v0.1.6                   built 2025-12-03T10:59:33Z
+```
+
+Those version and timestamp strings come from `go version -m`, which reads the
+build metadata Go embeds in the binary; the hashes are sha256 prefixes from
+`shasum -a 256`.
+
+Beyond the agent, nothing referenced `/opt/nextdns`: no plist in
+`~/Library/LaunchAgents`, `/Library/LaunchAgents` or `/Library/LaunchDaemons`
+mentions it, no shell rc or `/etc` file does, `crontab -l` has no entry, and no
+symlink in `~/bin`, `~/.local/bin` or `/usr/local/bin` resolves there.
+
+After the deletion the agent was checked again: PID 1252 unchanged, `/health` →
+`{"healthy":true,"ready":true,"update_count":2152,...}`, `/ready` →
+`{"ready":true}`. The update counter advanced across the deletion, which shows
+the running updater never depended on the removed file.
+
+If a system-wide (boot-time, pre-login) service is wanted later, the correct fix
+is to set the endpoint **and** make it reach the process — either `export` in the
+config, or drop the bash wrapper and put `EnvironmentVariables` in the plist, as
+the LaunchAgent does.
 
 ## Restoring, if ever needed
 
 ```bash
+# The plist and config are archived, but the binary is not, so rebuild that first:
+make build
+sudo mkdir -p /opt/nextdns-ip-updater
+sudo cp nextdns-ip-updater /opt/nextdns-ip-updater/
 sudo cp ~/.local/backups/nextdns-ip-updater-daemon-2026-10-06/net.nilbot.nextdns-ip-updater.plist /Library/LaunchDaemons/
+sudo cp ~/.local/backups/nextdns-ip-updater-daemon-2026-10-06/nextdns-ip-updater.conf.removed /etc/nextdns-ip-updater.conf
+sudo ln -sf /etc/nextdns-ip-updater.conf /etc/default/nextdns-ip-updater   # only if the plist keeps its wrapper
 # fix BOTH defects first, or it will simply crash-loop again:
 #   1. set NEXTDNS_ENDPOINT in /etc/nextdns-ip-updater.conf
 #   2. add `export` to those assignments (or replace the wrapper with EnvironmentVariables)
