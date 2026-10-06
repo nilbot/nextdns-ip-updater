@@ -1,9 +1,16 @@
-# Run Go tests and checks on every push and PR
+# Run Go tests and checks on every push and PR that can affect the Go build.
+# Documentation-only pushes skip this workflow. The filter is deliberately not
+# applied to the pull_request trigger: skipping a workflow whose check is
+# required by branch protection leaves the PR waiting forever for a status that
+# will never be reported.
 name: "Go Tests and Checks"
 
 on:
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
     branches: [ main ]
 
